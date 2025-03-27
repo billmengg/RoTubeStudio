@@ -84,7 +84,7 @@ udpPort.on('message', (oscMessage) => {
         spine: latestSpineData,
         bones: latestBoneData
     });
-    // 4 frames
+
     if (movementBuffer.length > 4) {
         movementBuffer.shift(); // Keep only the last four frames
     }
