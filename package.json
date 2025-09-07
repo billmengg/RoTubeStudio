@@ -1,0 +1,26 @@
+{
+  "name": "rotube",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/billmengg/RoTubeStudio.git"
+  },
+  "dependencies": {
+    "ws": "^8.0.0",
+    "express": "^4.18.0",
+    "osc": "^2.4.1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/billmengg/RoTubeStudio/issues"
+  },
+  "homepage": "https://github.com/billmengg/RoTubeStudio#readme",
+  "description": ""
+}
