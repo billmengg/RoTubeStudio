@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VSeeFace Live Data</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        #osc-data { 
+            white-space: pre-wrap; 
+            color: black;  /* Text color set to black */
+        }
+    </style>
+</head>
+<body>
+    <h1>Live VSeeFace Data</h1>
+    <div id="osc-data">Waiting for data...</div>
+
+    <script>
+        // Connect to WebSocket server
+        const socket = new WebSocket('ws://192.168.0.113:8080');  // Replace with your server's IP and port
+
+        // Listen for incoming messages
+        socket.onmessage = function(event) {
+            const oscData = JSON.parse(event.data);
+            const oscDataElement = document.getElementById('osc-data');
+            
+            // Update text content and keep text color black
+            oscDataElement.textContent = JSON.stringify(oscData, null, 2);
+            oscDataElement.style.color = 'black';  // Ensure text color stays black
+        };
+
+        socket.onerror = function(error) {
+            console.error('WebSocket Error:', error);
+        };
+
+        socket.onopen = function() {
+            console.log('WebSocket connection established.');
+        };
+
+        socket.onclose = function() {
+            console.log('WebSocket connection closed.');
+        };
+    </script>
+</body>
+</html>
