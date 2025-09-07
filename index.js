@@ -32,7 +32,7 @@ let latestBoneData = {
 let movementBuffer = [];
 
 // --------------------
-// OSC UDP Setup (optional if you want local UDP too)
+// Optional OSC UDP Setup (local UDP receiver)
 // --------------------
 const udpPort = new osc.UDPPort({
     localAddress: '0.0.0.0',
@@ -40,8 +40,6 @@ const udpPort = new osc.UDPPort({
 });
 
 udpPort.on('message', (oscMessage) => {
-    console.log('OSC:', oscMessage);
-
     if (oscMessage.address === '/VMC/Ext/Tra/Pos') {
         if (oscMessage.args[0] === 'Head') latestHeadData = { position: oscMessage.args.slice(1) };
         if (oscMessage.args[0] === 'Spine') latestSpineData = { position: oscMessage.args.slice(1) };
@@ -61,44 +59,40 @@ udpPort.on('message', (oscMessage) => {
         }
     }
 
-    movementBuffer.push({ head: latestHeadData, spine: latestSpineData, bones: latestBoneData });
+    const frame = { head: latestHeadData, spine: latestSpineData, bones: latestBoneData };
+    movementBuffer.push(frame);
     if (movementBuffer.length > 4) movementBuffer.shift();
+
+    // Broadcast immediately to all WS clients
+    wss.clients.forEach(ws => {
+        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(frame));
+    });
 });
 
 udpPort.open();
 
 // --------------------
-// WebSocket Server
+// WebSocket Server for clients
 // --------------------
 const wss = new WebSocket.Server({ noServer: true });
 
 wss.on('connection', (ws) => {
-    console.log('WebSocket connected');
-    ws.send(JSON.stringify({ message: "WebSocket connected!" }));
+    console.log('WebSocket client connected');
 
-    const interval = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(movementBuffer));
-    }, 125);
+    // Send last 4 frames immediately to new client
+    ws.send(JSON.stringify(movementBuffer));
 
-    ws.on('close', () => clearInterval(interval));
+    ws.on('close', () => console.log('WebSocket client disconnected'));
 });
 
 // --------------------
 // Express Routes
 // --------------------
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
-// Serve index.html
-app.get('/', (req, res) => {
-    const indexPath = path.join(__dirname, 'index.html');
-    res.sendFile(indexPath);
-});
+app.get('/osc-data', (req, res) => res.json(movementBuffer));
 
-// Serve last 4 frames of OSC data as JSON
-app.get('/osc-data', (req, res) => {
-    res.json(movementBuffer);
-});
-
-// Receive OSC frames via POST from local machine
+// Receive OSC frames via POST from local sender
 app.post('/receive-osc', (req, res) => {
     const frame = req.body;
     if (!frame) return res.status(400).send('No frame data received');
@@ -106,9 +100,9 @@ app.post('/receive-osc', (req, res) => {
     movementBuffer.push(frame);
     if (movementBuffer.length > 4) movementBuffer.shift();
 
-    // Broadcast to WebSocket clients immediately
+    // Broadcast immediately
     wss.clients.forEach(ws => {
-        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(movementBuffer));
+        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(frame));
     });
 
     res.sendStatus(200);
@@ -117,9 +111,7 @@ app.post('/receive-osc', (req, res) => {
 // --------------------
 // HTTP + WebSocket Upgrade
 // --------------------
-const server = app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Render server running on port ${PORT}`);
-});
+const server = app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
 
 server.on('upgrade', (request, socket, head) => {
     wss.handleUpgrade(request, socket, head, (ws) => {
