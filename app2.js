@@ -77,17 +77,23 @@ udpPort.on('message', (oscMessage) => {
         }
     }
 
+    // Deep copy snapshot
+    const snapshot = {
+        head: { ...latestHeadData },
+        spine: { ...latestSpineData },
+        bones: JSON.parse(JSON.stringify(latestBoneData))
+    };
 
-    // Buffer the last four frames of movement data with frame labels
-    movementBuffer.push({
-        head: latestHeadData,
-        spine: latestSpineData,
-        bones: latestBoneData
-    });
+    // Small rolling buffer of last 8 snapshots
+    if (!global.latestSnapshots) global.latestSnapshots = [];
+    global.latestSnapshots.push(snapshot);
+    if (global.latestSnapshots.length > 8) global.latestSnapshots.shift();
 
-    if (movementBuffer.length > 4) {
-        movementBuffer.shift(); // Keep only the last four frames
-    }
+    // Update movementBuffer (for HTTP /osc-data)
+    movementBuffer = global.latestSnapshots.slice();
+
+    // No need to update labeledBuffer here; labeling will be done per request
+
 });
 
 udpPort.open();
@@ -98,9 +104,14 @@ wss.on('connection', (ws) => {
     console.log('WebSocket connected');
     ws.send(JSON.stringify({ message: "WebSocket connected!" }));
 
-    // Send the last four movement frames every 125ms
+    // Send the last eight movement frames every 125ms, labeled 1-8
     setInterval(() => {
-        ws.send(JSON.stringify(movementBuffer));
+        if (global.latestSnapshots && global.latestSnapshots.length) {
+            const labeled = global.latestSnapshots
+                .slice(-8)
+                .map((frame, idx) => ({ [idx + 1]: frame }));
+            ws.send(JSON.stringify(labeled));
+        }
     }, 125);
 });
 
@@ -112,10 +123,17 @@ app.get('/', (req, res) => {
     res.sendFile(indexPath);
 });
 
-// Route to return the last four frames of movement data in JSON format
+// Route to return the last eight frames of movement data in JSON format, labeled 1-8
 app.get('/osc-data', (req, res) => {
     console.log('Received a request for /osc-data');
-    res.json(movementBuffer);
+    if (global.latestSnapshots && global.latestSnapshots.length) {
+        const labeled = global.latestSnapshots
+            .slice(-8)
+            .map((frame, idx) => ({ [idx + 1]: frame }));
+        res.json(labeled);
+    } else {
+        res.json([]);
+    }
 });
 
 app.listen(3000, '0.0.0.0', () => {
